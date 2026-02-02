@@ -1,0 +1,17 @@
+# Python compilation files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Virtual Environments (This is crucial!)
+venv/
+env/
+.env
+
+# IDE settings (VS Code, PyCharm)
+.vscode/
+.idea/
+
+# OS generated files
+.DS_Store
+Thumbs.db
