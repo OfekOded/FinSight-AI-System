@@ -42,3 +42,31 @@ class AIQueryRequest(BaseModel):
 class AIQueryResponse(BaseModel):
     answer: str
     suggested_action: Optional[str] = None
+    
+    
+    
+    
+# --- Auth Models ---
+
+class UserRegister(BaseModel):
+    """
+    Schema for user registration
+    """
+    username: str
+    password: str
+    full_name: str
+
+class UserLogin(BaseModel):
+    """
+    Schema for user login
+    """
+    username: str
+    password: str
+
+class AuthResponse(BaseModel):
+    """
+    Response returned after successful login/register
+    """
+    token: str
+    username: str
+    status: str = "success"

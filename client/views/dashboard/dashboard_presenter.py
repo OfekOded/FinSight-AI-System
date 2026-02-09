@@ -1,0 +1,82 @@
+# dashboard_presenter.py - מבקש נתונים מ-ApiService, מעבד אותם לפורמט המתאים לגרפים, ומעדכן את ה-View.
+
+
+# client/views/dashboard/dashboard_presenter.py
+from collections import defaultdict
+from PySide6.QtCore import QDate
+from .dashboard_model import DashboardModel
+
+class DashboardPresenter:
+    def __init__(self, view, api_service):
+        self.view = view
+        self.api_service = api_service
+        self.model = DashboardModel()
+        
+        # חיבור שינוי תאריך לפונקציית טעינה
+        self.view.date_filter.dateChanged.connect(self.on_date_changed)
+
+    def on_date_changed(self):
+        # כשמשנים תאריך, נטען מחדש את הנתונים
+        self.load_data()
+
+    def load_data(self):
+        print("Presenter: Fetching dashboard data...")
+        # כאן אנחנו קוראים לפונקציה בשרת (מניחים שהיא קיימת)
+        # בעתיד: אפשר לשלוח את החודש/שנה לשרת כדי לקבל סינון בצד השרת
+        # self.api_service.get_dashboard_data(month=..., year=...)
+        data = self.api_service.get_dashboard_data()
+        
+        if data:
+            self.model.total_balance = data.get("total_balance", 0.0)
+            self.model.monthly_expenses = data.get("monthly_expenses", 0.0)
+            raw_transactions = data.get("recent_transactions", [])
+            
+            # --- עיבוד נתונים (Logic) ---
+            
+            # 1. קבלת החודש והשנה שנבחרו ב-UI
+            selected_date = self.view.date_filter.date()
+            sel_month = selected_date.month()
+            sel_year = selected_date.year()
+
+            # 2. הכנה לגרף דונאט + מיון
+            category_totals = defaultdict(float)
+            for t in raw_transactions:
+                cat = t.get("category", "אחר")
+                amount = t.get("amount_in_ils", 0)
+                category_totals[cat] += amount
+            
+            # מיון: מהגדול לקטן (כדי שיופיע יפה בלגנד)
+            sorted_categories = sorted(category_totals.items(), key=lambda item: item[1], reverse=True)
+            
+            # 3. הכנה לגרף מגמה: סינון לפי התאריך הנבחר
+            daily_totals = defaultdict(float)
+            
+            for t in raw_transactions:
+                date_str = t.get("date", "2000-01-01")
+                try:
+                    # המרה פשוטה לבדיקת חודש/שנה
+                    y, m, d = map(int, date_str.split('-'))
+                    if y == sel_year and m == sel_month:
+                        daily_totals[date_str] += t.get("amount_in_ils", 0)
+                except:
+                    pass
+            
+            # הערה: אם אין נתונים לחודש הזה, הגרף יהיה ריק.
+            # זה תקין, כי המשתמש בחר חודש ללא הוצאות.
+            
+            # --- עדכון התצוגה ---
+            self.view.update_kpi(self.model.total_balance, self.model.monthly_expenses)
+            
+            # שליחת רשימה ממויינת לדונאט
+            self.view.update_donut_chart(sorted_categories)
+            
+            # שליחת נתונים מסוננים לגרף היומי
+            self.view.update_spline_chart(daily_totals)
+            
+            # עדכון טבלה (5 אחרונות) - כאן מציגים תמיד את החדשות ביותר ללא קשר לפילטר הגרף
+            # (או שאפשר לסנן גם אותן, תלוי בהעדפה. כרגע השארתי הכל)
+            recent_5 = list(reversed(raw_transactions))[:5]
+            self.view.update_recent_table(recent_5)
+            
+        else:
+            print("Error: No data received")
