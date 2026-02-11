@@ -70,3 +70,41 @@ class AuthResponse(BaseModel):
     token: str
     username: str
     status: str = "success"
+
+
+
+
+
+# --- Budget Models ---
+
+class BudgetSchema(BaseModel):
+    name: str
+    limit: float
+    spent: float
+
+class SubscriptionSchema(BaseModel):
+    name: str
+    amount: float
+
+class SavingsGoalSchema(BaseModel):
+    name: str
+    target: float
+    current: float
+
+class SavingsGoalCreate(BaseModel):
+    name: str
+    target: float
+    current: float = 0
+
+class BudgetDataResponse(BaseModel):
+    budgets: List[BudgetSchema]
+    subscriptions: List[SubscriptionSchema]
+    savings: List[SavingsGoalSchema]
+
+class BudgetCategoryCreate(BaseModel):
+    name: str
+    limit_amount: float
+
+class SubscriptionCreate(BaseModel):
+    name: str
+    amount: float

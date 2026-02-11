@@ -33,13 +33,14 @@ class MainWindowView(QMainWindow):
         self.sidebar_layout.setSpacing(10)
         self.sidebar_layout.setContentsMargins(10, 20, 10, 20)
         
-        # כפתורים עם אייקונים (SVG)
-        # שים לב: כאן אנחנו מניחים שהקבצים קיימים. אם לא - הוא יציג רק טקסט.
+        # --- כפתורי התפריט ---
         self.btn_dashboard = self.create_nav_button("לוח בקרה", "dashboard.svg")
+        self.btn_budget = self.create_nav_button("תקציב ויעדים", "budget.svg") # <--- הכפתור החדש
         self.btn_add_transaction = self.create_nav_button("הוספת עסקה", "transaction.svg")
         self.btn_ai_chat = self.create_nav_button("התייעצות AI", "ai.svg")
         
         self.sidebar_layout.addWidget(self.btn_dashboard)
+        self.sidebar_layout.addWidget(self.btn_budget) # <--- הוספה ללייאוט
         self.sidebar_layout.addWidget(self.btn_add_transaction)
         self.sidebar_layout.addWidget(self.btn_ai_chat)
         
@@ -51,7 +52,7 @@ class MainWindowView(QMainWindow):
         self.main_layout.addWidget(self.content_area)
 
     def create_nav_button(self, text, icon_filename):
-        btn = QPushButton(f" {text}")
+        btn = QPushButton(text) 
         btn.setCursor(Qt.PointingHandCursor)
         
         btn.setLayoutDirection(Qt.RightToLeft)
@@ -60,7 +61,7 @@ class MainWindowView(QMainWindow):
         icon_path = os.path.join(self.icons_path, icon_filename)
         if os.path.exists(icon_path):
             btn.setIcon(QIcon(icon_path))
-            btn.setIconSize(QSize(28, 28))
+            btn.setIconSize(QSize(32, 32))
         
         btn.setStyleSheet("""
             QPushButton {
@@ -72,12 +73,12 @@ class MainWindowView(QMainWindow):
                 padding-top: 15px;
                 padding-bottom: 15px;
                 font-size: 16px;
-                border-radius: 0px;
+                border-radius: 0px; 
                 border: none;
                 margin: 0px;
             }
             QPushButton:hover {
-                background-color: #485460;
+                background-color: #2f3640;
                 color: white;
                 border-right: 5px solid #00d2d3;
                 text-align: left;

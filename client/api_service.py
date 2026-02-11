@@ -77,3 +77,47 @@ class ApiService:
         except requests.exceptions.RequestException as e:
             print(f"Error adding transaction: {e}")
             return None
+
+
+    def add_budget_category(self, name, limit):
+        payload = {"name": name, "limit_amount": limit}
+        try:
+            requests.post(f"{self.base_url}/budget/category", json=payload)
+            return True
+        except Exception:
+            return False
+
+    def add_subscription(self, name, amount):
+        payload = {"name": name, "amount": amount}
+        try:
+            requests.post(f"{self.base_url}/budget/subscription", json=payload)
+            return True
+        except Exception:
+            return False
+        
+    def get_budget_data(self):
+        """שליפת נתוני תקציב"""
+        try:
+            response = requests.get(f"{self.base_url}/budget")
+            response.raise_for_status()
+            return response.json()
+        except Exception as e:
+            print(f"Server error (get_budget): {e}")
+            # --- מצב 'כאילו' ---
+            # מחזירים מבנה ריק כדי שהתוכנה לא תקרוס, אבל בלי נתונים מזויפים
+            return {"budgets": [], "subscriptions": [], "savings": []}
+
+    def add_savings_goal(self, name, target):
+        """שליחת יעד חדש לשרת"""
+        payload = {"name": name, "target": target, "current": 0}
+        try:
+            # מנסים לשלוח לשרת
+            response = requests.post(f"{self.base_url}/budget/savings", json=payload)
+            response.raise_for_status()
+            return True
+        except Exception as e:
+            print(f"Server error (add_goal): {e}")
+            # --- מצב 'כאילו' ---
+            # ביקשת שנתנהג כאילו השרת עבד והחזיר תשובה חיובית
+            # אז אנחנו מחזירים True גם אם נכשל
+            return True

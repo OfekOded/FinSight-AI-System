@@ -26,6 +26,7 @@ class DashboardPresenter:
         # self.api_service.get_dashboard_data(month=..., year=...)
         data = self.api_service.get_dashboard_data()
         
+        
         if data:
             self.model.total_balance = data.get("total_balance", 0.0)
             self.model.monthly_expenses = data.get("monthly_expenses", 0.0)
@@ -38,17 +39,10 @@ class DashboardPresenter:
             sel_month = selected_date.month()
             sel_year = selected_date.year()
 
-            # 2. הכנה לגרף דונאט + מיון
+            # 2. הכנה לגרף דונאט + מיון 
             category_totals = defaultdict(float)
-            for t in raw_transactions:
-                cat = t.get("category", "אחר")
-                amount = t.get("amount_in_ils", 0)
-                category_totals[cat] += amount
             
-            # מיון: מהגדול לקטן (כדי שיופיע יפה בלגנד)
-            sorted_categories = sorted(category_totals.items(), key=lambda item: item[1], reverse=True)
-            
-            # 3. הכנה לגרף מגמה: סינון לפי התאריך הנבחר
+            # 3. הכנה לגרף מגמה
             daily_totals = defaultdict(float)
             
             for t in raw_transactions:
@@ -56,25 +50,34 @@ class DashboardPresenter:
                 try:
                     # המרה פשוטה לבדיקת חודש/שנה
                     y, m, d = map(int, date_str.split('-'))
+                    
+                    # --- התיקון: בודקים אם העסקה שייכת לחודש הנבחר ---
                     if y == sel_year and m == sel_month:
-                        daily_totals[date_str] += t.get("amount_in_ils", 0)
+                        # אם כן, מוסיפים אותה גם לדונאט וגם לגרף היומי
+                        
+                        # לדונאט:
+                        cat = t.get("category", "אחר")
+                        amount = t.get("amount_in_ils", 0)
+                        category_totals[cat] += amount
+                        
+                        # לגרף היומי:
+                        daily_totals[date_str] += amount
+                        
                 except:
                     pass
             
-            # הערה: אם אין נתונים לחודש הזה, הגרף יהיה ריק.
-            # זה תקין, כי המשתמש בחר חודש ללא הוצאות.
+
+            # מיון קטגוריות מהגדול לקטן
+            sorted_categories = sorted(category_totals.items(), key=lambda item: item[1], reverse=True)
             
             # --- עדכון התצוגה ---
             self.view.update_kpi(self.model.total_balance, self.model.monthly_expenses)
             
-            # שליחת רשימה ממויינת לדונאט
+            # שליחת הנתונים המסוננים לגרפים
             self.view.update_donut_chart(sorted_categories)
-            
-            # שליחת נתונים מסוננים לגרף היומי
             self.view.update_spline_chart(daily_totals)
             
-            # עדכון טבלה (5 אחרונות) - כאן מציגים תמיד את החדשות ביותר ללא קשר לפילטר הגרף
-            # (או שאפשר לסנן גם אותן, תלוי בהעדפה. כרגע השארתי הכל)
+            # עדכון טבלה (כאן נשאיר את ה-5 האחרונות בכללי, או שאפשר לסנן גם אותן אם תרצה)
             recent_5 = list(reversed(raw_transactions))[:5]
             self.view.update_recent_table(recent_5)
             
