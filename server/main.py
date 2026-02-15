@@ -4,6 +4,7 @@ import hashlib
 from fastapi import FastAPI, Depends, HTTPException
 from sqlalchemy.orm import Session
 from typing import List
+from ai_agent import get_financial_advice
 
 from schemas import (
     TransactionCreate,
@@ -115,9 +116,19 @@ def get_dashboard_data(db: Session = Depends(get_db)):
     }
 
 @app.post("/api/ai/consult", response_model=AIQueryResponse)
-def consult_ai_agent(query: AIQueryRequest):
-    return {"answer": f"Analysis: '{query.question}' is valid. Spending is stable.", "suggested_action": "Check subscriptions"}
-
+def consult_ai_agent(query: AIQueryRequest, db: Session = Depends(get_db)):
+    events = db.query(Event).filter(Event.event_type == "TransactionCreated").all()
+    transactions = [event.payload for event in events]
+    
+    try:
+        ai_result = get_financial_advice(query.question, transactions)
+        return AIQueryResponse(
+            answer=ai_result.get("answer", ""),
+            suggested_action=ai_result.get("suggested_action", "")
+        )
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+    
 # --- Budget & Savings Endpoints ---
 
 @app.get("/api/budget", response_model=BudgetDataResponse)
