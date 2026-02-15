@@ -121,3 +121,13 @@ class ApiService:
             # ביקשת שנתנהג כאילו השרת עבד והחזיר תשובה חיובית
             # אז אנחנו מחזירים True גם אם נכשל
             return True
+        
+    def consult_ai(self, question):
+        url = f"{self.base_url}/ai/consult"
+        payload = {"question": question}
+        try:
+            response = requests.post(url, json=payload)
+            response.raise_for_status()
+            return response.json()
+        except requests.exceptions.RequestException:
+            return None

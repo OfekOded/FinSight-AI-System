@@ -68,6 +68,9 @@ if __name__ == "__main__":
     app = QApplication(sys.argv)
     app.setLayoutDirection(Qt.RightToLeft)
     
+    app.setStyle("Fusion")
+    app.setStyleSheet("QWidget { color: #2d3436; }") 
+
     controller = AppController()
     controller.start()
     
