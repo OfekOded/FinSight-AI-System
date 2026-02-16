@@ -1,5 +1,7 @@
 # client/views/auth/register_presenter.py
 
+from PySide6.QtWidgets import QMessageBox
+
 class RegisterPresenter:
     def __init__(self, view, api_service, on_register_success, on_back_to_login):
         self.view = view
@@ -30,8 +32,8 @@ class RegisterPresenter:
         result = self.api_service.register(username, password, full_name)
 
         if result:
-            self.view.show_message("הצלחה", "ההרשמה בוצעה בהצלחה! כעת ניתן להתחבר.")
-            # מעבר למסך ההתחברות
-            self.on_register_success() 
+            QMessageBox.information(self.view, "הצלחה", "נרשמת בהצלחה! מתחבר למערכת...")
+            self.on_register_success(result)
+
         else:
-            self.view.show_message("שגיאה", "ההרשמה נכשלה (ייתכן שהמשתמש כבר קיים)", True)
+            QMessageBox.critical(self.view, "שגיאה", "ההרשמה נכשלה (אולי המשתמש קיים?)")

@@ -35,14 +35,19 @@ class MainWindowView(QMainWindow):
         
         # --- כפתורי התפריט ---
         self.btn_dashboard = self.create_nav_button("לוח בקרה", "dashboard.svg")
-        self.btn_budget = self.create_nav_button("תקציב ויעדים", "budget.svg") # <--- הכפתור החדש
+        self.btn_budget = self.create_nav_button("תקציב ויעדים", "budget.svg") 
         self.btn_add_transaction = self.create_nav_button("הוספת עסקה", "transaction.svg")
         self.btn_ai_chat = self.create_nav_button("התייעצות AI", "ai.svg")
+        self.btn_receipts = self.create_nav_button("סריקת קבלה", "receipts.svg") 
+        self.btn_profile = self.create_nav_button("אזור אישי", "profile.svg")
         
         self.sidebar_layout.addWidget(self.btn_dashboard)
-        self.sidebar_layout.addWidget(self.btn_budget) # <--- הוספה ללייאוט
+        self.sidebar_layout.addWidget(self.btn_budget) 
         self.sidebar_layout.addWidget(self.btn_add_transaction)
+        self.sidebar_layout.addWidget(self.btn_receipts)
         self.sidebar_layout.addWidget(self.btn_ai_chat)
+        self.sidebar_layout.addStretch()
+        self.sidebar_layout.addWidget(self.btn_profile)
         
         # --- Content ---
         self.content_area = QStackedWidget()

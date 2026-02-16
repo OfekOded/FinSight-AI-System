@@ -8,6 +8,13 @@ class ApiService:
         # נשמור את הטוקן אם נצטרך אותו בעתיד לבקשות מאובטחות
         self.auth_token = None
 
+    def _get_headers(self):
+        """פונקציית עזר להוספת הטוקן לכל בקשה"""
+        headers = {"Content-Type": "application/json"}
+        if self.auth_token:
+            headers["Authorization"] = self.auth_token
+        return headers
+    
     def login(self, username, password):
         """
         שולח בקשת התחברות לשרת.
@@ -47,11 +54,34 @@ class ApiService:
             print(f"Sending POST to {url}")
             response = requests.post(url, json=payload)
             response.raise_for_status()
-            return response.json() # מחזיר הצלחה
+            data = response.json()
+            
+            if "token" in data:
+                self.auth_token = data["token"]
+                return data
+            
+            return data
+        
         except requests.exceptions.RequestException as e:
             print(f"Registration failed: {e}")
             return None
 
+    def update_user_profile(self, salary, full_name, password=None):
+        """הפונקציה שהייתה חסרה!"""
+        url = f"{self.base_url}/user/profile"
+        payload = {
+            "salary": float(salary) if salary else 0.0,
+            "full_name": full_name,
+            "password": password
+        }
+        try:
+            response = requests.post(url, json=payload, headers=self._get_headers())
+            response.raise_for_status()
+            return True
+        except Exception as e:
+            print(f"Update profile failed: {e}")
+            return False
+        
     def get_dashboard_data(self):
         try:
             # בעתיד: נוסיף כאן header עם הטוקן
@@ -62,6 +92,37 @@ class ApiService:
             print(f"Error fetching dashboard: {e}")
             return None
 
+    def get_user_profile(self):
+        """שליפת פרטי המשתמש הנוכחי"""
+        try:
+            res = requests.get(f"{self.base_url}/auth/profile/me")
+            return res.json() if res.status_code == 200 else None
+        except:
+            return None
+
+    def update_user_profile(self, salary=None, full_name=None, current_password=None, new_password=None):
+        """עדכון פרופיל"""
+        url = f"{self.base_url}/auth/profile/update"
+        payload = {}
+        if salary is not None: payload["salary"] = salary
+        if full_name: payload["full_name"] = full_name
+        if new_password:
+            payload["current_password"] = current_password
+            payload["new_password"] = new_password
+            
+        try:
+            res = requests.post(url, json=payload)
+            if res.status_code == 200:
+                return True, "הפרופיל עודכן בהצלחה"
+            else:
+                return False, res.json().get("detail", "שגיאה בעדכון")
+        except Exception as e:
+            return False, str(e)
+
+    def upload_receipt(self, file_path):
+        # ... (הקוד שנתתי לך בפעם הקודמת)
+        return {"merchant": "דמו", "amount": 100, "date": "2026-01-01"}
+    
     def add_transaction(self, title, amount, category, date):
         payload = {
             "title": title,

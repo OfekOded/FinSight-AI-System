@@ -10,6 +10,29 @@ class DashboardPresenter:
     def __init__(self, view, api_service):
         self.view = view
         self.api_service = api_service
+        
+        # טעינה ראשונית
+        self.load_data()
+
+    def load_data(self):
+        """פונקציה שטוענת את הנתונים מחדש מהשרת ומעדכנת את המסך"""
+        print("Presenter: Refreshing dashboard data...")
+        data = self.api_service.get_dashboard_data()
+        
+        if data:
+            total = data.get("total_balance", 0.0)
+            monthly = data.get("monthly_expenses", 0.0)
+            transactions = data.get("recent_transactions", [])
+            
+            self.view.update_balance(total)
+            self.view.update_monthly_expenses(monthly)
+            self.view.update_recent_transactions(transactions)
+            self.view.update_chart(data)
+        else:
+            print("Error: No data received")
+    def __init__(self, view, api_service):
+        self.view = view
+        self.api_service = api_service
         self.model = DashboardModel()
         
         # חיבור שינוי תאריך לפונקציית טעינה

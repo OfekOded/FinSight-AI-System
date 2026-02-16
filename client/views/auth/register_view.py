@@ -75,6 +75,10 @@ class RegisterView(QWidget):
         card_layout.addStretch()
 
         layout.addWidget(self.card)
+        
+        self.username_input.returnPressed.connect(self.register_btn.click)
+        self.password_input.returnPressed.connect(self.register_btn.click)
+        self.fullname_input.returnPressed.connect(self.register_btn.click)
 
     def create_input(self, placeholder, is_password=False):
         inp = QLineEdit()

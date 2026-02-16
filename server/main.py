@@ -15,6 +15,7 @@ from schemas import (
     UserRegister,
     UserLogin,
     AuthResponse,
+    UserProfileUpdate,
     BudgetSchema,
     SubscriptionSchema,
     SavingsGoalSchema,
@@ -129,7 +130,45 @@ async def consult_ai_agent(query: AIQueryRequest, db: Session = Depends(get_db))
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
     
+    # הוסף את הייבוא החדש למעלה:
+from schemas import UserProfileUpdate 
+
+
+
+@app.post("/api/auth/profile/update")
+def update_user_profile_endpoint(update_data: UserProfileUpdate, token: str = "token-1", db: Session = Depends(get_db)):
+    user = db.query(User).first() 
     
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    # עדכון שכר
+    if update_data.salary is not None:
+        user.salary = update_data.salary
+        
+    # עדכון שם
+    if update_data.full_name:
+        user.full_name = update_data.full_name
+
+    # עדכון סיסמה (רק אם סופקה סיסמה נוכחית נכונה)
+    if update_data.new_password:
+        if not update_data.current_password:
+            raise HTTPException(status_code=400, detail="Current password required")
+        
+        if user.password_hash != hash_password(update_data.current_password):
+            raise HTTPException(status_code=401, detail="Incorrect current password")
+            
+        user.password_hash = hash_password(update_data.new_password)
+
+    db.commit()
+    return {"status": "success", "salary": user.salary, "full_name": user.full_name}
+
+@app.get("/api/auth/profile/me")
+def get_my_profile(db: Session = Depends(get_db)):
+    user = db.query(User).first() # לוקח את הראשון כברירת מחדל
+    if not user: return {}
+    return {"username": user.username, "full_name": user.full_name, "salary": user.salary}
+
 # --- Budget & Savings Endpoints ---
 
 @app.get("/api/budget", response_model=BudgetDataResponse)

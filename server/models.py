@@ -18,6 +18,7 @@ class User(Base):
     username = Column(String, unique=True, index=True) # שם משתמש הוא מפתח
     full_name = Column(String)
     password_hash = Column(String) # אנחנו שומרים הצפנה של הסיסמה
+    salary = Column(Float, default=10000.0)
 
 class BudgetCategory(Base):
     __tablename__ = "budget_categories"

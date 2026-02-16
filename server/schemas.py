@@ -72,7 +72,11 @@ class AuthResponse(BaseModel):
     status: str = "success"
 
 
-
+class UserProfileUpdate(BaseModel):
+    full_name: Optional[str] = None
+    salary: Optional[float] = None
+    current_password: Optional[str] = None # נדרש לאימות לפני שינוי פרטים רגישים
+    new_password: Optional[str] = None
 
 
 # --- Budget Models ---
