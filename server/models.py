@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, DateTime, JSON, Float
+from sqlalchemy import Column, Integer, String, DateTime, JSON, Float, ForeignKey
 from datetime import datetime
 from database import Base
 
@@ -30,8 +30,10 @@ class BudgetCategory(Base):
 class Subscription(Base):
     __tablename__ = "subscriptions"
     id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id")) # מקשר למשתמש
     name = Column(String)
     amount = Column(Float)
+    renewal_date = Column(Integer, default=1) # יום בחודש שבו מתחדש
 
 class SavingsGoal(Base):
     __tablename__ = "savings_goals"

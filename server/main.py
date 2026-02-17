@@ -1,9 +1,12 @@
+from datetime import datetime
 import uuid
 import requests
 import hashlib
-from fastapi import FastAPI, Depends, HTTPException
+from fastapi import FastAPI, Depends, HTTPException, Header, UploadFile, File
+import shutil
+import os
 from sqlalchemy.orm import Session
-from typing import List
+from typing import List, Optional
 from ai_agent import get_financial_advice
 
 from schemas import (
@@ -34,6 +37,25 @@ app = FastAPI(title="FinSight AI Backend System")
 def hash_password(password: str) -> str:
     return hashlib.sha256(password.encode()).hexdigest()
 
+def get_current_user(authorization: Optional[str] = Header(None), db: Session = Depends(get_db)):
+    """מזהה את המשתמש לפי הטוקן שנשלח ב-Header"""
+    if not authorization:
+        # למטרות פיתוח, אם אין טוקן נחזיר את המשתמש הראשון
+        # אפשר להחליף את זה בהתנהגות אחרת או להחזיר שגיאה, אבל כרגע זה מאפשר לנו לעבוד בלי צורך בהתחברות בכל פעם
+        # בתכלס נעבור בהתחברות לפני זה רק כי אני מכבה את ההתחברות בהרצות לוודא שהכל עובד
+        user = db.query(User).first()
+        if user: return user
+        raise HTTPException(status_code=401, detail="Missing token")
+    
+    try:
+        user_id = authorization.split("-")[1]
+        user = db.query(User).filter(User.id == int(user_id)).first()
+        if not user:
+            raise HTTPException(status_code=401, detail="User not found")
+        return user
+    except:
+        raise HTTPException(status_code=401, detail="Invalid token format")
+    
 def get_exchange_rate(from_currency: str, to_currency: str = "ILS") -> float:
     if from_currency == "ILS": return 1.0
     try:
@@ -65,6 +87,56 @@ def login_user(user: UserLogin, db: Session = Depends(get_db)):
         raise HTTPException(status_code=401, detail="Invalid credentials")
     return {"token": f"token-{db_user.id}", "username": db_user.username, "status": "logged_in"}
 
+# --- Prrofile ---
+
+@app.get("/api/auth/profile/me")
+def get_my_profile(user: User = Depends(get_current_user)):
+    return {"username": user.username, "full_name": user.full_name, "salary": user.salary}
+
+@app.post("/api/user/profile")
+def update_user_profile(update_data: UserProfileUpdate, user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    # עדכון שכר
+    if update_data.salary is not None:
+        user.salary = update_data.salary
+        
+    # עדכון שם
+    if update_data.full_name:
+        user.full_name = update_data.full_name
+
+    # עדכון סיסמה
+    if update_data.new_password:
+        user.password_hash = hash_password(update_data.new_password)
+
+    db.commit()
+    return {"status": "success", "salary": user.salary, "full_name": user.full_name}
+
+# --- Receipts ---
+
+@app.post("/api/receipts/analyze")
+async def analyze_receipt(file: UploadFile = File(...)):
+    """
+    מקבל קובץ תמונה, שומר אותו זמנית ומחזיר ניתוח 'מומלץ'.
+    במערכת אמיתית כאן תהיה קריאה ל-OCR או ל-Gemini Vision.
+    """
+    # שמירת הקובץ (אופציונלי)
+    file_location = f"temp_{file.filename}"
+    with open(file_location, "wb+") as file_object:
+        shutil.copyfileobj(file.file, file_object)
+    
+    # מחיקת הקובץ הזמני
+    if os.path.exists(file_location):
+        os.remove(file_location)
+
+    # עודד אני מחכה שתשלים פה
+    # כרגע נחזיר נתונים מדומים כדי שנוכל להתקדם עם הפיתוח של הצד הקליינט
+    import random
+    return {
+        "merchant": "סופר-מרקט (זוהה)",
+        "amount": random.randint(50, 500),
+        "date": "2026-02-17",
+        "category": "מזון"
+    }
+    
 # --- BUSINESS LOGIC ---
 @app.post("/api/transactions", response_model=TransactionResponse)
 def add_transaction(transaction: TransactionCreate, db: Session = Depends(get_db)):
@@ -81,7 +153,7 @@ def add_transaction(transaction: TransactionCreate, db: Session = Depends(get_db
 
     new_event = Event(aggregate_id=new_id, event_type="TransactionCreated", payload=response_obj)
     
-    # --- תיקון: עדכון חכם דו-כיווני של התקציב ---
+    # עדכון חכם דו-כיווני של התקציב
     # שולפים את כל התקציבים ובודקים אחד אחד
     all_budgets = db.query(BudgetCategory).all()
     trans_cat = transaction.category.strip()
@@ -100,21 +172,69 @@ def add_transaction(transaction: TransactionCreate, db: Session = Depends(get_db
     return response_obj
 
 @app.get("/api/dashboard", response_model=DashboardData)
-def get_dashboard_data(db: Session = Depends(get_db)):
+def get_dashboard_data(db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    """
+    כאן התיקון: אנו משתמשים ב-user שהגיע מהטוקן (Depends(get_current_user))
+    """
     events = db.query(Event).all()
     transactions = []
     total_spent = 0.0
+    
     for event in events:
         if event.event_type == "TransactionCreated":
             data = event.payload
-            transactions.append(data)
-            total_spent += data["amount_in_ils"]
+            # סינון: האם העסקה שייכת למשתמש הנוכחי?
+            # (תמיכה לאחור: אם אין user_id, מניחים שזה גלובלי/של כולם כרגע, או מדלגים)
+            if data.get("user_id") == user.id:
+                transactions.append(data)
+                amount = data.get("amount_in_ils", data.get("amount", 0))
+                total_spent += amount
             
+    subscriptions = db.query(Subscription).filter(Subscription.user_id == user.id).all()
+    subs_total = 0.0
+    current_month_str = datetime.now().strftime("%Y-%m")
+    
+    for sub in subscriptions:
+        subs_total += sub.amount
+        transactions.append({
+            "title": f"{sub.name}",
+            "amount": sub.amount,
+            "category": "Subscription",
+            "date": current_month_str,
+            "currency": "ILS",
+        })
+        
+    transactions.sort(key=lambda x: x.get("date", ""), reverse=True)
+    
+    total_monthly_spent = total_spent + subs_total
+    
+    # חישוב היתרה לפי המשכורת העדכנית של המשתמש
+    current_salary = user.salary if user.salary else 0.0
+    balance = current_salary - total_monthly_spent
+
     return {
-        "total_balance": 20000.0 - total_spent,
+        "total_balance": balance,
         "monthly_expenses": total_spent,
         "recent_transactions": transactions[-5:]
     }
+    
+@app.get("/api/budget", response_model=BudgetDataResponse)
+def get_budget_data(db: Session = Depends(get_db)):
+    budgets = db.query(BudgetCategory).all()
+    subs = db.query(Subscription).all()
+    savings = db.query(SavingsGoal).all()
+    return {
+        "budgets": [{"name": b.name, "limit": b.limit_amount, "spent": b.spent_amount} for b in budgets],
+        "subscriptions": [{"name": s.name, "amount": s.amount} for s in subs],
+        "savings": [{"name": s.name, "target": s.target_amount, "current": s.current_amount} for s in savings]
+    }
+
+@app.post("/api/budget/category")
+def add_budget_category(item: BudgetCategoryCreate, db: Session = Depends(get_db)):
+    new_cat = BudgetCategory(name=item.name, limit_amount=item.limit_amount, spent_amount=0)
+    db.add(new_cat)
+    db.commit()
+    return {"status": "success", "id": new_cat.id}
 
 @app.post("/api/ai/consult", response_model=AIQueryResponse)
 async def consult_ai_agent(query: AIQueryRequest, db: Session = Depends(get_db)):
@@ -129,9 +249,6 @@ async def consult_ai_agent(query: AIQueryRequest, db: Session = Depends(get_db))
         )
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
-    
-    # הוסף את הייבוא החדש למעלה:
-from schemas import UserProfileUpdate 
 
 
 
