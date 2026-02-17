@@ -10,7 +10,25 @@ class ProfilePresenter(QObject):
         self.api_service = api_service
         
         self.view.save_btn.clicked.connect(self.save_profile)
+        
+        self.load_profile_data()
 
+    def load_profile_data(self):
+        print("Fetching profile data...")
+        data = self.api_service.get_user_profile()
+        
+        if data:
+            name = data.get("full_name", "משתמש")
+            salary = data.get("salary", 0.0)
+            
+            self.view.update_display(name, salary)
+            
+            self.view.salary_input.setValue(salary)
+            if name != "משתמש":
+                self.view.name_input.setText(name)
+        else:
+            print("Failed to load profile data")
+            
     def save_profile(self):
         new_name = self.view.name_input.text().strip()
         salary = self.view.salary_input.value()

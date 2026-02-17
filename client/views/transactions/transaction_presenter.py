@@ -27,7 +27,8 @@ class TransactionPresenter:
             title=data["title"],
             amount=amount,
             category=data["category"],
-            date=data["date"]
+            date=data["date"], 
+            currency=data.get("currency", "ILS")
         )
 
         if response:

@@ -1,111 +1,116 @@
 from PySide6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton, 
-                               QFileDialog, QFrame, QLineEdit, QDateEdit, QDoubleSpinBox, QMessageBox)
+                               QFrame, QFileDialog, QSizePolicy)
 from PySide6.QtCore import Qt, QDate
-from PySide6.QtGui import QPixmap
 
-class DragDropArea(QLabel):
-    def __init__(self, parent=None):
-        super().__init__(parent)
-        self.setAlignment(Qt.AlignCenter)
-        self.setText("\n\nגרור קובץ תמונה לכאן\nאו לחץ לבחירה\n\n")
-        self.setStyleSheet("""
-            QLabel {
-                border: 2px dashed #a29bfe;
-                border-radius: 10px;
-                background-color: #f1f2f6;
-                color: #636e72;
-                font-size: 16px;
-            }
-            QLabel:hover {
-                background-color: #dfe6e9;
-                border-color: #6c5ce7;
-            }
-        """)
-        self.setAcceptDrops(True)
-        self.file_path = None
-        self.clicked_callback = None
-
-    def mousePressEvent(self, event):
-        if self.clicked_callback:
-            self.clicked_callback()
-
-    def dragEnterEvent(self, event):
-        if event.mimeData().hasUrls():
-            event.acceptProposedAction()
-
-    def dropEvent(self, event):
-        urls = event.mimeData().urls()
-        if urls and urls[0].isLocalFile():
-            self.file_path = urls[0].toLocalFile()
-            self.setText(f"קובץ נבחר:\n{self.file_path.split('/')[-1]}")
-            # כאן אפשר לשדר סיגנל לפרזנטר
+# ייבוא הרכיבים
+from components.drag_drop import DragDropArea
+from components.inputs import ModernDateEdit, ModernInput
 
 class ReceiptView(QWidget):
     def __init__(self):
         super().__init__()
-        self.setStyleSheet("background-color: #f5f6fa;")
+        self.layout = QVBoxLayout(self)
+        self.layout.setContentsMargins(0, 0, 0, 0)
+        self.layout.setSpacing(0)
+
+        # --- כותרת ---
+        header = QWidget()
+        header.setStyleSheet("background-color: white; border-bottom: 1px solid #dfe6e9; padding: 15px;")
+        header_layout = QHBoxLayout(header)
+        header_layout.setContentsMargins(20, 0, 20, 0)
         
-        main_layout = QHBoxLayout(self)
-        
-        # --- צד ימין: העלאה ---
-        upload_container = QFrame()
-        upload_container.setStyleSheet("background-color: white; border-radius: 15px;")
-        upload_layout = QVBoxLayout(upload_container)
-        
-        upload_layout.addWidget(QLabel("סריקת קבלה (AI)"))
+        title = QLabel("סריקת וניתוח קבלות (AI Vision)")
+        title.setStyleSheet("font-size: 24px; font-weight: 800; color: #2d3436;")
+        header_layout.addWidget(title)
+        self.layout.addWidget(header)
+
+        # --- תוכן ראשי ---
+        content_container = QWidget()
+        content_layout = QHBoxLayout(content_container)
+        content_layout.setContentsMargins(30, 30, 30, 30)
+        content_layout.setSpacing(30)
+
+        # --- צד ימין: גרירה (גדול) ---
+        right_panel = QVBoxLayout()
         
         self.drop_area = DragDropArea()
-        upload_layout.addWidget(self.drop_area)
+        self.drop_area.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
         
-        self.analyze_btn = QPushButton("נתח קבלה")
-        self.analyze_btn.setCursor(Qt.PointingHandCursor)
-        self.analyze_btn.setStyleSheet("background-color: #0984e3; color: white; padding: 10px; border-radius: 5px;")
-        upload_layout.addWidget(self.analyze_btn)
-        
-        main_layout.addWidget(upload_container, 40)
+        right_panel.addWidget(self.drop_area)
+        content_layout.addLayout(right_panel, stretch=2)
 
-        # --- צד שמאל: תוצאות ועריכה ---
-        details_container = QFrame()
-        details_container.setStyleSheet("background-color: white; border-radius: 15px;")
-        details_layout = QVBoxLayout(details_container)
+        # --- צד שמאל: טופס (צר) ---
+        form_frame = QFrame()
+        form_frame.setFixedWidth(380)
+        form_frame.setStyleSheet("""
+            QFrame { background-color: white; border-radius: 15px; border: 1px solid #dfe6e9; }
+            QLabel { font-weight: bold; color: #636e72; margin-top: 10px; border: none; }
+        """)
         
-        details_layout.addWidget(QLabel("פרטי העסקה (זוהה אוטומטית)"))
+        form_layout = QVBoxLayout(form_frame)
+        form_layout.setContentsMargins(25, 25, 25, 25)
+        form_layout.setAlignment(Qt.AlignTop)
+
+        form_title = QLabel("פרטי העסקה")
+        form_title.setStyleSheet("font-size: 20px; color: #2d3436; margin-bottom: 5px; border: none;")
+        form_layout.addWidget(form_title)
         
-        # שם בית העסק
-        details_layout.addWidget(QLabel("שם בית העסק:"))
-        self.merchant_input = QLineEdit()
-        details_layout.addWidget(self.merchant_input)
+        form_subtitle = QLabel("הנתונים יתמלאו אוטומטית ע\"י ה-AI")
+        form_subtitle.setStyleSheet("font-size: 13px; color: #b2bec3; margin-bottom: 20px; font-weight: normal; border: none;")
+        form_layout.addWidget(form_subtitle)
+
+        # שדות
+        form_layout.addWidget(QLabel("שם בית העסק:"))
+        self.merchant_input = ModernInput("למשל: סופר-פארם")
+        form_layout.addWidget(self.merchant_input)
+
+        form_layout.addWidget(QLabel("סכום לתשלום:"))
+        self.amount_input = ModernInput("0.00")
+        form_layout.addWidget(self.amount_input)
         
-        # תאריך
-        details_layout.addWidget(QLabel("תאריך:"))
-        self.date_input = QDateEdit()
-        self.date_input.setCalendarPopup(True)
+        form_layout.addWidget(QLabel("תאריך:"))
+        self.date_input = ModernDateEdit()
         self.date_input.setDate(QDate.currentDate())
-        details_layout.addWidget(self.date_input)
-        
-        # סכום
-        details_layout.addWidget(QLabel("סכום (₪):"))
-        self.amount_input = QDoubleSpinBox()
-        self.amount_input.setMaximum(100000)
-        details_layout.addWidget(self.amount_input)
-        
-        # קטגוריה (אופציונלי לשיפור)
-        details_layout.addWidget(QLabel("קטגוריה:"))
-        self.category_input = QLineEdit()
-        details_layout.addWidget(self.category_input)
-        
-        details_layout.addStretch()
-        
-        self.save_btn = QPushButton("אשר והוסף להוצאות")
+        form_layout.addWidget(self.date_input)
+
+        form_layout.addWidget(QLabel("קטגוריה:"))
+        self.category_input = ModernInput("למשל: מזון / דלק")
+        form_layout.addWidget(self.category_input)
+
+        form_layout.addSpacing(20)
+
+        # כפתורים
+        self.analyze_btn = QPushButton("✨ נתח קבלה עם AI")
+        self.analyze_btn.setCursor(Qt.PointingHandCursor)
+        self.analyze_btn.setStyleSheet("""
+            QPushButton { 
+                background-color: #6c5ce7; color: white; border-radius: 8px; 
+                padding: 12px; font-weight: bold; font-size: 15px; border: none;
+            }
+            QPushButton:hover { background-color: #5f3dc4; }
+        """)
+        form_layout.addWidget(self.analyze_btn)
+
+        self.save_btn = QPushButton("שמור והוסף להוצאות")
         self.save_btn.setCursor(Qt.PointingHandCursor)
-        self.save_btn.setStyleSheet("background-color: #00b894; color: white; padding: 12px; border-radius: 5px; font-weight: bold;")
-        self.save_btn.setEnabled(False) # עד שיש ניתוח
-        details_layout.addWidget(self.save_btn)
+        self.save_btn.setEnabled(False)
+        self.save_btn.setStyleSheet("""
+            QPushButton { 
+                background-color: #00b894; color: white; border-radius: 8px; 
+                padding: 12px; font-weight: bold; font-size: 15px; margin-top: 10px; border: none;
+            }
+            QPushButton:hover { background-color: #00a884; }
+            QPushButton:disabled { background-color: #b2bec3; }
+        """)
+        form_layout.addWidget(self.save_btn)
         
-        main_layout.addWidget(details_container, 60)
+        form_layout.addStretch()
+
+        content_layout.addWidget(form_frame)
+        self.layout.addWidget(content_container)
 
     def open_file_dialog(self):
+        """פותח חלון לבחירת קובץ ומעדכן את אזור הגרירה"""
         file_name, _ = QFileDialog.getOpenFileName(self, "בחר תמונה", "", "Images (*.png *.jpg *.jpeg)")
         if file_name:
-            self.drop_area.file_path = file_name
-            self.drop_area.setText(f"קובץ נבחר:\n{file_name.split('/')[-1]}")
+            self.drop_area.set_file(file_name)

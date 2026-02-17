@@ -8,9 +8,11 @@ class ApiService:
         # נשמור את הטוקן אם נצטרך אותו בעתיד לבקשות מאובטחות
         self.auth_token = None
 
-    def _get_headers(self):
+    def _get_headers(self, content_type="application/json"):
         """פונקציית עזר להוספת הטוקן לכל בקשה"""
-        headers = {"Content-Type": "application/json"}
+        headers = {}
+        if content_type:
+            headers["Content-Type"] = content_type
         if self.auth_token:
             headers["Authorization"] = self.auth_token
         return headers
@@ -65,9 +67,18 @@ class ApiService:
         except requests.exceptions.RequestException as e:
             print(f"Registration failed: {e}")
             return None
-
+        
+    # def get_user_profile(self):
+    #     url = f"{self.base_url}/auth/profile/me"
+    #     try:
+    #         response = requests.get(url, headers=self._get_headers())
+    #         response.raise_for_status()
+    #         return response.json() # מחזיר {username, full_name, salary}
+    #     except Exception as e:
+    #         print(f"Fetch profile failed: {e}")
+    #         return None
+        
     def update_user_profile(self, salary, full_name, password=None):
-        """הפונקציה שהייתה חסרה!"""
         url = f"{self.base_url}/user/profile"
         payload = {
             "salary": float(salary) if salary else 0.0,
@@ -84,8 +95,7 @@ class ApiService:
         
     def get_dashboard_data(self):
         try:
-            # בעתיד: נוסיף כאן header עם הטוקן
-            response = requests.get(f"{self.base_url}/dashboard")
+            response = requests.get(f"{self.base_url}/dashboard", headers=self._get_headers())
             response.raise_for_status()
             return response.json()
         except requests.exceptions.RequestException as e:
@@ -94,10 +104,13 @@ class ApiService:
 
     def get_user_profile(self):
         """שליפת פרטי המשתמש הנוכחי"""
+        url = f"{self.base_url}/auth/profile/me"
         try:
-            res = requests.get(f"{self.base_url}/auth/profile/me")
-            return res.json() if res.status_code == 200 else None
-        except:
+            response = requests.get(url, headers=self._get_headers())
+            response.raise_for_status()
+            return response.json()
+        except Exception as e:
+            print(f"Error fetching user profile: {e}")
             return None
 
     def update_user_profile(self, salary=None, full_name=None, current_password=None, new_password=None):
@@ -123,13 +136,13 @@ class ApiService:
         # ... (הקוד שנתתי לך בפעם הקודמת)
         return {"merchant": "דמו", "amount": 100, "date": "2026-01-01"}
     
-    def add_transaction(self, title, amount, category, date):
+    def add_transaction(self, title, amount, category, date, currency="ILS"):
         payload = {
             "title": title,
             "amount": amount,
             "category": category,
             "date": date,
-            "currency": "ILS"
+            "currency": currency
         }
         try:
             response = requests.post(f"{self.base_url}/transactions", json=payload)
@@ -159,8 +172,7 @@ class ApiService:
     def get_budget_data(self):
         """שליפת נתוני תקציב"""
         try:
-            response = requests.get(f"{self.base_url}/budget")
-            response.raise_for_status()
+            response = requests.get(f"{self.base_url}/budget", headers=self._get_headers())
             return response.json()
         except Exception as e:
             print(f"Server error (get_budget): {e}")
