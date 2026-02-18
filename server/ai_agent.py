@@ -7,14 +7,15 @@ from langchain_core.prompts import PromptTemplate
 from transformers import pipeline
 from mcp import ClientSession, StdioServerParameters
 from mcp.client.stdio import stdio_client
+from ollama import AsyncClient
 
 os.environ["HF_HUB_DISABLE_SYMLINKS_WARNING"] = "1"
-
-classifier = pipeline("zero-shot-classification", model="facebook/bart-large-mnli")
 
 class AIResult(BaseModel):
     answer: str
     suggested_action: str
+
+classifier = pipeline("zero-shot-classification", model="facebook/bart-large-mnli")
 
 def analyze_query_intent(text: str) -> str:
     labels = ["budgeting", "investing", "saving", "general expense"]
@@ -65,3 +66,50 @@ async def get_financial_advice(question: str, transactions: List[dict]) -> dict:
         return json.loads(response.content)
     except Exception:
         return {"answer": str(response.content), "suggested_action": ""}
+
+async def analyze_receipt_image(image_bytes: bytes) -> dict:
+    try:
+        prompt = """
+        Analyze this receipt image and extract the following details into a pure JSON object.
+        Keys required:
+        - merchant: Name of the business.
+        - amount: Total amount (number only).
+        - date: YYYY-MM-DD or null.
+        - category: One of [מזון, דלק, בילויים, קניות, סופר, חשבונות, אחר].
+
+        Output ONLY the JSON object. Do not add markdown or explanations.
+        """
+
+        response = await AsyncClient().chat(
+            model='llava',
+            messages=[{
+                'role': 'user',
+                'content': prompt,
+                'images': [image_bytes]
+            }]
+        )
+
+        raw_text = response['message']['content'].strip()
+        
+        if raw_text.startswith("```json"):
+            raw_text = raw_text[7:]
+        if raw_text.endswith("```"):
+            raw_text = raw_text[:-3]
+
+        data = json.loads(raw_text.strip())
+        
+        return {
+            "merchant": data.get("merchant", "לא זוהה"),
+            "amount": data.get("amount", 0),
+            "date": data.get("date"),
+            "category": data.get("category", "כללי")
+        }
+
+    except Exception as e:
+        print(f"Ollama Vision Error: {e}")
+        return {
+            "merchant": "שגיאת פענוח",
+            "amount": 0,
+            "category": "אחר",
+            "error": str(e)
+        }

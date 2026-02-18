@@ -133,9 +133,21 @@ class ApiService:
             return False, str(e)
 
     def upload_receipt(self, file_path):
-        # ... (הקוד שנתתי לך בפעם הקודמת)
-        return {"merchant": "דמו", "amount": 100, "date": "2026-01-01"}
-    
+        url = f"{self.base_url}/receipts/analyze"
+        try:
+            with open(file_path, 'rb') as f:
+                # We send the file as 'file' to match the FastAPI 'file: UploadFile' parameter
+                files = {'file': (file_path.split('/')[-1], f, 'image/png')}
+                
+                # Use self._get_headers(content_type=None) so 'requests' can set the multipart boundary
+                response = requests.post(url, files=files, headers=self._get_headers(content_type=None))
+                
+                response.raise_for_status()
+                return response.json() # This will return the real data from Gemini
+        except Exception as e:
+            print(f"Error uploading receipt: {e}")
+            return None
+        
     def add_transaction(self, title, amount, category, date, currency="ILS"):
         payload = {
             "title": title,

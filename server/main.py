@@ -7,7 +7,7 @@ import shutil
 import os
 from sqlalchemy.orm import Session
 from typing import List, Optional
-from ai_agent import get_financial_advice
+from ai_agent import get_financial_advice, analyze_receipt_image
 
 from schemas import (
     TransactionCreate,
@@ -115,27 +115,24 @@ def update_user_profile(update_data: UserProfileUpdate, user: User = Depends(get
 @app.post("/api/receipts/analyze")
 async def analyze_receipt(file: UploadFile = File(...)):
     """
-    מקבל קובץ תמונה, שומר אותו זמנית ומחזיר ניתוח 'מומלץ'.
-    במערכת אמיתית כאן תהיה קריאה ל-OCR או ל-Gemini Vision.
+    Receives an image file, sends it to Gemini Flash for OCR,
+    and returns the extracted financial data.
     """
-    # שמירת הקובץ (אופציונלי)
-    file_location = f"temp_{file.filename}"
-    with open(file_location, "wb+") as file_object:
-        shutil.copyfileobj(file.file, file_object)
-    
-    # מחיקת הקובץ הזמני
-    if os.path.exists(file_location):
-        os.remove(file_location)
+    if not file.content_type.startswith("image/"):
+        raise HTTPException(status_code=400, detail="File must be an image")
 
-    # עודד אני מחכה שתשלים פה
-    # כרגע נחזיר נתונים מדומים כדי שנוכל להתקדם עם הפיתוח של הצד הקליינט
-    import random
-    return {
-        "merchant": "סופר-מרקט (זוהה)",
-        "amount": random.randint(50, 500),
-        "date": "2026-02-17",
-        "category": "מזון"
-    }
+    try:
+        # Read file into memory
+        contents = await file.read()
+        
+        # Send to AI Agent
+        result = await analyze_receipt_image(contents)
+        
+        return result
+        
+    except Exception as e:
+        print(f"Error processing receipt: {e}")
+        raise HTTPException(status_code=500, detail="Failed to process receipt image")
     
 # --- BUSINESS LOGIC ---
 @app.post("/api/transactions", response_model=TransactionResponse)
