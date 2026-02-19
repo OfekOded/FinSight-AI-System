@@ -7,10 +7,13 @@ class Event(Base):
     __tablename__ = "events"
 
     id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id"), index=True, nullable=True)
     aggregate_id = Column(String, index=True)
     event_type = Column(String)
     payload = Column(JSON)
     timestamp = Column(DateTime, default=datetime.utcnow)
+    
+    user = relationship("User")
     
 class User(Base):
     __tablename__ = "users"

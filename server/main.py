@@ -155,7 +155,7 @@ def add_transaction(transaction: TransactionCreate, db: Session = Depends(get_db
         **transaction.dict()
     }
 
-    new_event = Event(aggregate_id=new_id, event_type="TransactionCreated", payload=response_obj)
+    new_event = Event(user_id=user.id, aggregate_id=new_id, event_type="TransactionCreated", payload=response_obj)
     db.add(new_event)
     
     dispatch_event("TransactionCreated", response_obj, db)
@@ -167,21 +167,15 @@ def add_transaction(transaction: TransactionCreate, db: Session = Depends(get_db
 
 @app.get("/api/dashboard", response_model=DashboardData)
 def get_dashboard_data(db: Session = Depends(get_db), user: User = Depends(get_current_user)):
-    """
-    כאן התיקון: אנו משתמשים ב-user שהגיע מהטוקן (Depends(get_current_user))
-    """
-    events = db.query(Event).all()
+    events = db.query(Event).filter(Event.user_id == user.id, Event.event_type == "TransactionCreated").all()
     transactions = []
     total_spent = 0.0
     
     for event in events:
-        if event.event_type == "TransactionCreated":
-            data = event.payload
-            # בדיקה האם העסקה שייכת למשתמש הנוכחי
-            if str(data.get("user_id")) == str(user.id):
-                transactions.append(data)
-                amount = data.get("amount_in_ils", data.get("amount", 0))
-                total_spent += amount
+        data = event.payload
+        transactions.append(data)
+        amount = data.get("amount_in_ils", data.get("amount", 0))
+        total_spent += amount
             
     subscriptions = db.query(Subscription).filter(Subscription.user_id == user.id).all()
     subs_total = 0.0
@@ -193,7 +187,7 @@ def get_dashboard_data(db: Session = Depends(get_db), user: User = Depends(get_c
         subs_total += amount
         transactions.append({
             "id": f"sub-{sub.id}-{current_month_str}",
-            "title": f"{sub.name} (מנוי)",
+            "title": f"{sub.name}",
             "amount": amount,
             "category": "מנויים",
             "date": f"{current_month_str}-01",
@@ -206,7 +200,6 @@ def get_dashboard_data(db: Session = Depends(get_db), user: User = Depends(get_c
     
     total_monthly_spent = total_spent + subs_total
     
-    # חישוב היתרה לפי המשכורת העדכנית של המשתמש
     current_salary = user.salary if user.salary else 0.0
     balance = current_salary - total_monthly_spent
 
@@ -229,18 +222,17 @@ def get_dashboard_data(db: Session = Depends(get_db), user: User = Depends(get_c
 
 @app.post("/api/budget/category")
 def add_budget_category(item: BudgetCategoryCreate, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
-    events = db.query(Event).filter(Event.event_type == "TransactionCreated").all()
+    events = db.query(Event).filter(Event.user_id == user.id, Event.event_type == "TransactionCreated").all()
     past_spent = 0.0
     budget_name = item.name.strip()
     
     for event in events:
         data = event.payload
-        if str(data.get("user_id")) == str(user.id):
-            trans_cat = data.get("category", "").strip()
-            trans_amount = float(data.get("amount_in_ils", 0.0))
-            
-            if trans_cat and (trans_cat in budget_name or budget_name in trans_cat):
-                 past_spent += trans_amount
+        trans_cat = data.get("category", "").strip()
+        trans_amount = float(data.get("amount_in_ils", 0.0))
+        
+        if trans_cat and (trans_cat in budget_name or budget_name in trans_cat):
+             past_spent += trans_amount
 
     new_cat = BudgetCategory(
         user_id=user.id,
@@ -252,9 +244,10 @@ def add_budget_category(item: BudgetCategoryCreate, db: Session = Depends(get_db
     db.commit()
     return {"status": "success", "id": new_cat.id}
 
+
 @app.post("/api/ai/consult", response_model=AIQueryResponse)
-async def consult_ai_agent(query: AIQueryRequest, db: Session = Depends(get_db)):
-    events = db.query(Event).filter(Event.event_type == "TransactionCreated").all()
+async def consult_ai_agent(query: AIQueryRequest, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    events = db.query(Event).filter(Event.user_id == user.id, Event.event_type == "TransactionCreated").all()
     transactions = [event.payload for event in events]
     
     try:
@@ -319,22 +312,18 @@ def get_budget_data(db: Session = Depends(get_db), user: User = Depends(get_curr
 
 @app.put("/api/budget/savings/{goal_id}/deposit")
 def deposit_to_savings(goal_id: int, amount: float = 0, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
-    # 1. מציאת היעד
     goal = db.query(SavingsGoal).filter(SavingsGoal.id == goal_id, SavingsGoal.user_id == user.id).first()
     if not goal:
         raise HTTPException(status_code=404, detail="Goal not found")
     
-    # 2. עדכון הסכום בחיסכון
     goal.current_amount += amount
     
-    # 3. יצירת עסקה שלילית (הוצאה מהעו"ש לטובת החיסכון)
-    # זה מה שיעדכן את הדשבורד ויוריד מהיתרה
     new_id = str(uuid.uuid4())
     transaction_payload = {
         "id": new_id,
         "user_id": user.id,
-        "title": f"חיסכון - {goal.name}", 
-        "amount": amount, # זה יופיע כהוצאה חיובית בדשבורד, והחישוב שם מוריד את זה מהמשכורת
+        "title": f"{goal.name}", 
+        "amount": amount,
         "amount_in_ils": amount,
         "category": "חיסכון",
         "date": datetime.now().strftime("%Y-%m-%d"),
@@ -342,7 +331,7 @@ def deposit_to_savings(goal_id: int, amount: float = 0, db: Session = Depends(ge
         "status": "confirmed"
     }
     
-    new_event = Event(aggregate_id=new_id, event_type="TransactionCreated", payload=transaction_payload)
+    new_event = Event(user_id=user.id, aggregate_id=new_id, event_type="TransactionCreated", payload=transaction_payload)
     db.add(new_event)
     
     db.commit()
@@ -350,32 +339,26 @@ def deposit_to_savings(goal_id: int, amount: float = 0, db: Session = Depends(ge
 
 @app.delete("/api/budget/savings/{goal_id}")
 def delete_savings_goal(goal_id: int, refund: bool = False, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
-    # 1. מציאת היעד
     goal = db.query(SavingsGoal).filter(SavingsGoal.id == goal_id, SavingsGoal.user_id == user.id).first()
     if not goal:
         raise HTTPException(status_code=404, detail="Goal not found")
     
-    # 2. אם המשתמש התחרט (refund=True), מחזירים את הכסף לחשבון
     if refund and goal.current_amount > 0:
         new_id = str(uuid.uuid4())
-        # יצירת עסקה עם סכום שלילי (כדי שתחשב כהכנסה/ביטול הוצאה בדשבורד)
-        # או פשוט נרשום אותה כ"הכנסה" מסוג החזר
-        # בשיטה הנוכחית שלך בדשבורד (הוצאות מצטברות), אנחנו נרשום את זה כמינוס הוצאה
         transaction_payload = {
             "id": new_id,
             "user_id": user.id,
-            "title": f"ביטול חיסכון - {goal.name}",
-            "amount": -goal.current_amount, # מינוס הוצאה = פלוס ליתרה
+            "title": f"{goal.name}",
+            "amount": -goal.current_amount,
             "amount_in_ils": -goal.current_amount,
-            "category": "הכנסה/החזר",
+            "category": "החזר",
             "date": datetime.now().strftime("%Y-%m-%d"),
             "currency": "ILS",
             "status": "confirmed"
         }
-        new_event = Event(aggregate_id=new_id, event_type="TransactionCreated", payload=transaction_payload)
+        new_event = Event(user_id=user.id, aggregate_id=new_id, event_type="TransactionCreated", payload=transaction_payload)
         db.add(new_event)
 
-    # 3. מחיקת היעד מהטבלה (בין אם סיים ובין אם ביטל)
     db.delete(goal)
     db.commit()
     
