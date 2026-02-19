@@ -41,7 +41,6 @@ def hash_password(password: str) -> str:
 def get_current_user(authorization: Optional[str] = Header(None), db: Session = Depends(get_db)):
     if not authorization:
         raise HTTPException(status_code=401, detail="Missing token")
-    
     try:
         if "-" in authorization:
             user_id = authorization.split("-")[1]
@@ -50,22 +49,8 @@ def get_current_user(authorization: Optional[str] = Header(None), db: Session = 
                 raise HTTPException(status_code=401, detail="User not found")
             return user
         else:
-             raise HTTPException(status_code=401, detail="Invalid token format")
+            raise HTTPException(status_code=401, detail="Invalid token format")
     except Exception:
-        raise HTTPException(status_code=401, detail="Invalid token format")
-    
-    try:
-        if "-" in authorization:
-            user_id = authorization.split("-")[1]
-            user = db.query(User).filter(User.id == int(user_id)).first()
-            if not user:
-                raise HTTPException(status_code=401, detail="User not found")
-            return user
-        else:
-             # ניסיון תמיכה בטוקנים ישנים/אחרים
-             user = db.query(User).first()
-             return user
-    except:
         raise HTTPException(status_code=401, detail="Invalid token format")
     
 def get_exchange_rate(from_currency: str, to_currency: str = "ILS") -> float:
@@ -218,16 +203,6 @@ def get_dashboard_data(db: Session = Depends(get_db), user: User = Depends(get_c
         "recent_transactions": transactions[-5:]
     }
     
-# @app.get("/api/budget", response_model=BudgetDataResponse)
-# def get_budget_data(db: Session = Depends(get_db), user: User = Depends(get_current_user)):
-#     budgets = db.query(BudgetCategory).filter(BudgetCategory.user_id == user.id).all()
-#     subs = db.query(Subscription).filter(Subscription.user_id == user.id).all()
-#     savings = db.query(SavingsGoal).filter(SavingsGoal.user_id == user.id).all()
-#     return {
-#         "budgets": [{"name": b.name, "limit": b.limit_amount, "spent": b.spent_amount} for b in budgets],
-#         "subscriptions": [{"name": s.name, "amount": s.amount} for s in subs],
-#         "savings": [{"name": s.name, "target": s.target_amount, "current": s.current_amount} for s in savings]
-#     }
 
 @app.post("/api/budget/category")
 def add_budget_category(item: BudgetCategoryCreate, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
@@ -240,7 +215,7 @@ def add_budget_category(item: BudgetCategoryCreate, db: Session = Depends(get_db
         trans_cat = data.get("category", "").strip()
         trans_amount = float(data.get("amount_in_ils", 0.0))
         
-        if trans_cat and (trans_cat in budget_name or budget_name in trans_cat):
+        if trans_cat == budget_name:
              past_spent += trans_amount
 
     new_cat = BudgetCategory(
@@ -252,7 +227,6 @@ def add_budget_category(item: BudgetCategoryCreate, db: Session = Depends(get_db
     db.add(new_cat)
     db.commit()
     return {"status": "success", "id": new_cat.id}
-
 
 @app.post("/api/ai/consult", response_model=AIQueryResponse)
 async def consult_ai_agent(query: AIQueryRequest, db: Session = Depends(get_db), user: User = Depends(get_current_user)):

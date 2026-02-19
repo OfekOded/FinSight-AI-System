@@ -13,7 +13,7 @@ def project_transaction_created(payload: dict, db: Session):
     
     for cat in budgets:
         budget_name = cat.name.strip()
-        if category in budget_name or budget_name in category:
+        if category == budget_name:
             cat.spent_amount += amount
 
 def dispatch_event(event_type: str, payload: dict, db: Session):

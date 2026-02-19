@@ -1,6 +1,7 @@
 # client/api_service.py
 import os
 import requests
+import mimetypes
 
 class ApiService:
     def __init__(self):
@@ -68,16 +69,6 @@ class ApiService:
             print(f"Registration failed: {e}")
             return None
         
-    # def get_user_profile(self):
-    #     url = f"{self.base_url}/auth/profile/me"
-    #     try:
-    #         response = requests.get(url, headers=self._get_headers())
-    #         response.raise_for_status()
-    #         return response.json() # מחזיר {username, full_name, salary}
-    #     except Exception as e:
-    #         print(f"Fetch profile failed: {e}")
-    #         return None
-        
     def update_user_profile(self, salary, full_name, current_password=None, new_password=None):
         url = f"{self.base_url}/user/profile" # תיקון: נתיב אחיד לפי השרת
         payload = {}
@@ -120,46 +111,25 @@ class ApiService:
             print(f"Error fetching user profile: {e}")
             return None
 
-    # כתבתי בטעות פעמיים
-    #
-    #
-    # def update_user_profile(self, salary=None, full_name=None, current_password=None, new_password=None):
-    #     """עדכון פרופיל"""
-    #     url = f"{self.base_url}/auth/profile/update"
-    #     payload = {}
-    #     if salary is not None: payload["salary"] = salary
-    #     if full_name: payload["full_name"] = full_name
-    #     if new_password:
-    #         payload["current_password"] = current_password
-    #         payload["new_password"] = new_password
-            
-    #     try:
-    #         res = requests.post(url, json=payload)
-    #         if res.status_code == 200:
-    #             return True, "הפרופיל עודכן בהצלחה"
-    #         else:
-    #             return False, res.json().get("detail", "שגיאה בעדכון")
-    #     except Exception as e:
-    #         return False, str(e)
-
     def upload_receipt(self, file_path):
         url = f"{self.base_url}/receipts/analyze"
         try:
             if not os.path.exists(file_path): return None
             
-            with open(file_path, 'rb') as f:
-                # We send the file as 'file' to match the FastAPI 'file: UploadFile' parameter
-                files = {'file': (file_path.split('/')[-1], f, 'image/png')}
+            import mimetypes
+            mime_type, _ = mimetypes.guess_type(file_path)
+            if not mime_type:
+                mime_type = 'application/octet-stream'
                 
+            with open(file_path, 'rb') as f:
+                files = {'file': (file_path.split('/')[-1], f, mime_type)}
                 headers = {}
                 if self.auth_token:
                     headers["Authorization"] = self.auth_token
                 
-                # Use self._get_headers(content_type=None) so 'requests' can set the multipart boundary
                 response = requests.post(url, files=files, headers=headers)
-                
                 response.raise_for_status()
-                return response.json() # This will return the real data from Gemini
+                return response.json()
         except Exception as e:
             print(f"Error uploading receipt: {e}")
             return None
