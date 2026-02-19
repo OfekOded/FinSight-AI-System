@@ -1,4 +1,4 @@
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict
 from typing import List, Optional
 
 # --- Transaction Models ---
@@ -82,20 +82,27 @@ class UserProfileUpdate(BaseModel):
 # --- Budget Models ---
 
 class BudgetSchema(BaseModel):
+    id: int
     name: str
-    limit: float
-    spent: float
+    limit_amount: float
+    spent_amount: float
+    model_config = ConfigDict(from_attributes=True)
 
 class SubscriptionSchema(BaseModel):
+    id: int
     name: str
     amount: float
+    model_config = ConfigDict(from_attributes=True)
 
 class SavingsGoalSchema(BaseModel):
+    id: int
     name: str
-    target: float
-    current: float
+    target_amount: float
+    current_amount: float
+    model_config = ConfigDict(from_attributes=True)
 
 class SavingsGoalCreate(BaseModel):
+    # id: int
     name: str
     target: float
     current: float = 0

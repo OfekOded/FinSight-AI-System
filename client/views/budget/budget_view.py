@@ -1,8 +1,10 @@
-# client/views/budget/budget_view.py
 from PySide6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QLabel, QFrame, 
                                QProgressBar, QPushButton, QDialog, QLineEdit, QDoubleSpinBox, QMessageBox)
 from PySide6.QtCore import Qt, QRectF
 from PySide6.QtGui import QPainter, QColor, QPen, QFont
+
+from components.saving_item import SavingsItem
+
 
 # --- דיאלוגים ---
 
@@ -258,30 +260,41 @@ class BudgetView(QWidget):
         w.setLayout(row)
         self.subs_list_layout.addWidget(w)
 
-    def add_savings_item(self, name, saved, target):
-        frame = QFrame()
-        frame.setStyleSheet("background-color: #f1f2f6; border-radius: 8px; border: none; margin-bottom: 5px;")
-        layout = QHBoxLayout(frame)
-        layout.setContentsMargins(10, 5, 10, 5)
-        text_layout = QVBoxLayout()
-        name_lbl = QLabel(name)
-        name_lbl.setStyleSheet("font-weight: bold; font-size: 14px; border: none;")
-        details_lbl = QLabel(f"נחסך: ₪{saved:,.0f} מתוך ₪{target:,.0f}")
-        details_lbl.setStyleSheet("color: #636e72; font-size: 12px; border: none;")
-        text_layout.addWidget(name_lbl)
-        text_layout.addWidget(details_lbl)
-        percent = (saved / target) * 100 if target > 0 else 0
-        circle = CircularProgress(percent, size=40)
-        layout.addLayout(text_layout)
-        layout.addStretch()
-        layout.addWidget(circle)
-        self.goals_list_layout.addWidget(frame)
+    # def add_savings_item(self, name, saved, target):
+    #     frame = QFrame()
+    #     frame.setStyleSheet("background-color: #f1f2f6; border-radius: 8px; border: none; margin-bottom: 5px;")
+    #     layout = QHBoxLayout(frame)
+    #     layout.setContentsMargins(10, 5, 10, 5)
+    #     text_layout = QVBoxLayout()
+    #     name_lbl = QLabel(name)
+    #     name_lbl.setStyleSheet("font-weight: bold; font-size: 14px; border: none;")
+    #     details_lbl = QLabel(f"נחסך: ₪{saved:,.0f} מתוך ₪{target:,.0f}")
+    #     details_lbl.setStyleSheet("color: #636e72; font-size: 12px; border: none;")
+    #     text_layout.addWidget(name_lbl)
+    #     text_layout.addWidget(details_lbl)
+    #     percent = (saved / target) * 100 if target > 0 else 0
+    #     circle = CircularProgress(percent, size=40)
+    #     layout.addLayout(text_layout)
+    #     layout.addStretch()
+    #     layout.addWidget(circle)
+    #     self.goals_list_layout.addWidget(frame)
 
+    def add_savings_item(self, goal_id, name, current, target):
+        item = SavingsItem(goal_id, name, current, target)
+        self.savings_layout.addWidget(item)
+        return item
+    
     def clear_all(self):
         def clear_layout(layout):
+            if layout is None:
+                return
             while layout.count():
-                child = layout.takeAt(0)
-                if child.widget(): child.widget().deleteLater()
+                item = layout.takeAt(0)
+                widget = item.widget()
+                if widget is not None:
+                    widget.deleteLater()
+                elif item.layout() is not None:
+                    clear_layout(item.layout())
         
         clear_layout(self.budget_list_layout)
         clear_layout(self.subs_list_layout)
