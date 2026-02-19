@@ -8,6 +8,7 @@ import os
 from sqlalchemy.orm import Session
 from typing import List, Optional
 from ai_agent import get_financial_advice, analyze_receipt_image
+from projectors import dispatch_event
 
 from schemas import (
     TransactionCreate,
@@ -155,34 +156,14 @@ def add_transaction(transaction: TransactionCreate, db: Session = Depends(get_db
     }
 
     new_event = Event(aggregate_id=new_id, event_type="TransactionCreated", payload=response_obj)
-    
-    # עדכון חכם דו-כיווני של התקציב
-    # שולפים את כל התקציבים ובודקים אחד אחד
-    cat = db.query(BudgetCategory).filter(
-        BudgetCategory.user_id == user.id, 
-        BudgetCategory.name == transaction.category
-    ).first()
-    
-    if cat:
-        cat.spent_amount += final_amount_ils
-    
     db.add(new_event)
-    db.commit()
-    return response_obj
     
+    dispatch_event("TransactionCreated", response_obj, db)
     
-    for cat in all_budgets:
-        budget_name = cat.name.strip()
-        # בדיקה: האם הקטגוריה מוכלת בתקציב או התקציב מוכל בקטגוריה
-        if trans_cat and (trans_cat in budget_name or budget_name in trans_cat):
-            cat.spent_amount += final_amount_ils
-            # הערה: אפשר להוסיף break אם רוצים לשייך רק לתקציב אחד, 
-            # אבל כרגע נשאיר כדי שיתפוס את הכל אם יש חפיפה.
-
-    db.add(new_event)
     db.commit()
     db.refresh(new_event)
     return response_obj
+
 
 @app.get("/api/dashboard", response_model=DashboardData)
 def get_dashboard_data(db: Session = Depends(get_db), user: User = Depends(get_current_user)):
@@ -248,7 +229,25 @@ def get_dashboard_data(db: Session = Depends(get_db), user: User = Depends(get_c
 
 @app.post("/api/budget/category")
 def add_budget_category(item: BudgetCategoryCreate, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
-    new_cat = BudgetCategory(user_id=user.id, name=item.name, limit_amount=item.limit_amount, spent_amount=0)
+    events = db.query(Event).filter(Event.event_type == "TransactionCreated").all()
+    past_spent = 0.0
+    budget_name = item.name.strip()
+    
+    for event in events:
+        data = event.payload
+        if str(data.get("user_id")) == str(user.id):
+            trans_cat = data.get("category", "").strip()
+            trans_amount = float(data.get("amount_in_ils", 0.0))
+            
+            if trans_cat and (trans_cat in budget_name or budget_name in trans_cat):
+                 past_spent += trans_amount
+
+    new_cat = BudgetCategory(
+        user_id=user.id,
+        name=item.name, 
+        limit_amount=item.limit_amount, 
+        spent_amount=past_spent
+    )
     db.add(new_cat)
     db.commit()
     return {"status": "success", "id": new_cat.id}
@@ -388,35 +387,6 @@ def add_savings_goal(goal: SavingsGoalCreate, db: Session = Depends(get_db), use
     db.add(new_goal)
     db.commit()
     return {"status": "success", "id": new_goal.id}
-
-@app.post("/api/budget/category")
-def add_budget_category(item: BudgetCategoryCreate, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
-    
-    # 1. שליפת כל העסקאות
-    events = db.query(Event).filter(Event.event_type == "TransactionCreated").all()
-    past_spent = 0.0
-    budget_name = item.name.strip()
-    
-    # 2. מעבר על העסקאות וחיפוש התאמה דו-כיוונית
-    for event in events:
-        data = event.payload
-        trans_cat = data.get("category", "").strip()
-        trans_amount = float(data.get("amount_in_ils", 0.0))
-        
-        # התאמה: אם שם הקטגוריה נמצא בשם התקציב או להיפך
-        if trans_cat and (trans_cat in budget_name or budget_name in trans_cat):
-             past_spent += trans_amount
-
-    # 3. יצירת התקציב עם הסכום שחושב
-    new_cat = BudgetCategory(
-        user_id=user.id,
-        name=item.name, 
-        limit_amount=item.limit_amount, 
-        spent_amount=past_spent
-        )
-    db.add(new_cat)
-    db.commit()
-    return {"status": "success", "id": new_cat.id}
 
 @app.post("/api/budget/subscription")
 def add_subscription(item: SubscriptionCreate, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
