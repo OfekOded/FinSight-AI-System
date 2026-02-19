@@ -211,12 +211,14 @@ class ApiService:
             print(f"Error deleting goal: {e}")
             return False
         
-    def consult_ai(self, question):
-        url = f"{self.base_url}/ai/consult"
-        payload = {"question": question}
-        try:
-            response = requests.post(url, json=payload, headers=self._get_headers())
-            response.raise_for_status()
-            return response.json()
-        except requests.exceptions.RequestException:
-            return None
+    def consult_ai(self, question, history=None):
+            if history is None:
+                history = []
+            url = f"{self.base_url}/ai/consult"
+            payload = {"question": question, "history": history}
+            try:
+                response = requests.post(url, json=payload, headers=self._get_headers())
+                response.raise_for_status()
+                return response.json()
+            except requests.exceptions.RequestException:
+                return None

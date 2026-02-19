@@ -36,8 +36,13 @@ class DashboardData(BaseModel):
 
 # --- AI Models ---
 
+class Message(BaseModel):
+    role: str
+    content: str
+
 class AIQueryRequest(BaseModel):
     question: str
+    history: List[Message] = []
 
 class AIQueryResponse(BaseModel):
     answer: str
