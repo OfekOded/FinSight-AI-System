@@ -281,7 +281,7 @@ class BudgetView(QWidget):
 
     def add_savings_item(self, goal_id, name, current, target):
         item = SavingsItem(goal_id, name, current, target)
-        self.savings_layout.addWidget(item)
+        self.goals_list_layout.addWidget(item)
         return item
     
     def clear_all(self):
