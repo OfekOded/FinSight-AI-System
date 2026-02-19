@@ -39,14 +39,20 @@ def hash_password(password: str) -> str:
     return hashlib.sha256(password.encode()).hexdigest()
 
 def get_current_user(authorization: Optional[str] = Header(None), db: Session = Depends(get_db)):
-    """מזהה את המשתמש לפי הטוקן שנשלח ב-Header"""
     if not authorization:
-        # למטרות פיתוח, אם אין טוקן נחזיר את המשתמש הראשון
-        # אפשר להחליף את זה בהתנהגות אחרת או להחזיר שגיאה, אבל כרגע זה מאפשר לנו לעבוד בלי צורך בהתחברות בכל פעם
-        # בתכלס נעבור בהתחברות לפני זה רק כי אני מכבה את ההתחברות בהרצות לוודא שהכל עובד
-        user = db.query(User).first()
-        if user: return user
         raise HTTPException(status_code=401, detail="Missing token")
+    
+    try:
+        if "-" in authorization:
+            user_id = authorization.split("-")[1]
+            user = db.query(User).filter(User.id == int(user_id)).first()
+            if not user:
+                raise HTTPException(status_code=401, detail="User not found")
+            return user
+        else:
+             raise HTTPException(status_code=401, detail="Invalid token format")
+    except Exception:
+        raise HTTPException(status_code=401, detail="Invalid token format")
     
     try:
         if "-" in authorization:
@@ -101,16 +107,19 @@ def get_my_profile(user: User = Depends(get_current_user)):
 
 @app.post("/api/user/profile")
 def update_user_profile(update_data: UserProfileUpdate, user: User = Depends(get_current_user), db: Session = Depends(get_db)):
-    # עדכון שכר
     if update_data.salary is not None:
         user.salary = update_data.salary
         
-    # עדכון שם
     if update_data.full_name:
         user.full_name = update_data.full_name
 
-    # עדכון סיסמה
     if update_data.new_password:
+        if not update_data.current_password:
+            raise HTTPException(status_code=400, detail="Current password required")
+        
+        if user.password_hash != hash_password(update_data.current_password):
+            raise HTTPException(status_code=401, detail="Incorrect current password")
+            
         user.password_hash = hash_password(update_data.new_password)
 
     db.commit()
@@ -258,42 +267,6 @@ async def consult_ai_agent(query: AIQueryRequest, db: Session = Depends(get_db),
         )
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
-
-
-
-@app.post("/api/auth/profile/update")
-def update_user_profile_endpoint(update_data: UserProfileUpdate, token: str = "token-1", db: Session = Depends(get_db)):
-    user = db.query(User).first() 
-    
-    if not user:
-        raise HTTPException(status_code=404, detail="User not found")
-
-    # עדכון שכר
-    if update_data.salary is not None:
-        user.salary = update_data.salary
-        
-    # עדכון שם
-    if update_data.full_name:
-        user.full_name = update_data.full_name
-
-    # עדכון סיסמה (רק אם סופקה סיסמה נוכחית נכונה)
-    if update_data.new_password:
-        if not update_data.current_password:
-            raise HTTPException(status_code=400, detail="Current password required")
-        
-        if user.password_hash != hash_password(update_data.current_password):
-            raise HTTPException(status_code=401, detail="Incorrect current password")
-            
-        user.password_hash = hash_password(update_data.new_password)
-
-    db.commit()
-    return {"status": "success", "salary": user.salary, "full_name": user.full_name}
-
-@app.get("/api/auth/profile/me")
-def get_my_profile(db: Session = Depends(get_db)):
-    user = db.query(User).first() # לוקח את הראשון כברירת מחדל
-    if not user: return {}
-    return {"username": user.username, "full_name": user.full_name, "salary": user.salary}
 
 # --- Budget & Savings Endpoints ---
 

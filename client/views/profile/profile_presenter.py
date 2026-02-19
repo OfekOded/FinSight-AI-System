@@ -41,7 +41,7 @@ class ProfilePresenter(QObject):
              self.view.show_message("שגיאה", "חובה שיהיה שם למשתמש", is_error=True)
              return
 
-        success = self.api_service.update_user_profile(salary, final_name, password)
+        success = self.api_service.update_user_profile(salary, final_name, new_password=password)
 
         if success:
             self.view.update_display(final_name, salary)

@@ -35,17 +35,16 @@ class AppController:
         self.view.show()
 
     def show_register(self):
-        self.close_current_window()
-        
-        self.view = RegisterView()
-        self.presenter = RegisterPresenter(
-            self.view, 
-            self.api_service, 
-            on_register_success=self.show_login,
-            on_back_to_login=self.show_login
-        )
-        self.view.switch_to_login_signal.connect(self.show_login_window)
-        self.view.show()
+            self.close_current_window()
+            
+            self.view = RegisterView()
+            self.presenter = RegisterPresenter(
+                self.view, 
+                self.api_service, 
+                on_register_success=self.switch_to_dashboard,
+                on_back_to_login=self.show_login
+            )
+            self.view.show()
 
     def switch_to_dashboard(self, user_data):
         self.close_current_window()
