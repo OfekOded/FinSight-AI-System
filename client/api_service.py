@@ -169,6 +169,16 @@ class ApiService:
         except Exception:
             return False
         
+    def delete_subscription(self, sub_id):
+        """שולח בקשה למחיקת מנוי"""
+        try:
+            url = f"{self.base_url}/budget/subscription/{sub_id}"
+            res = requests.delete(url, headers=self._get_headers())
+            return res.status_code == 200
+        except Exception as e:
+            print(f"Error deleting subscription: {e}")
+            return False
+        
     def get_budget_data(self):
         """שליפת נתוני תקציב"""
         try:

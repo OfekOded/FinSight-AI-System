@@ -34,7 +34,9 @@ class BudgetPresenter:
                 self.view.add_budget_item(b["name"], spent, limit)
                 
             for s in data.get("subscriptions", []):
-                self.view.add_subscription_item(s["name"], s["amount"])
+                sub_id = s.get("id")
+                del_btn = self.view.add_subscription_item(sub_id, s["name"], s["amount"])
+                del_btn.clicked.connect(lambda checked=False, sid=sub_id, snames=s["name"]: self.handle_delete_sub(sid, snames))
                 
             for g in data.get("savings", []):
                 target = g.get("target_amount", 0)
@@ -93,3 +95,17 @@ class BudgetPresenter:
             if name and amount > 0:
                 if self.api_service.add_subscription(name, amount):
                     self.load_data()
+                    
+    def handle_delete_sub(self, sub_id, name):
+        reply = QMessageBox.question(
+            self.view, 
+            "ביטול מנוי", 
+            f"האם אתה בטוח שברצונך למחוק את המנוי '{name}'?\n\nשימו לב: המחיקה תעצור חיובים עתידיים, אך לא תזכה אתכם על התשלום שכבר בוצע החודש.",
+            QMessageBox.Yes | QMessageBox.No
+        )
+        if reply == QMessageBox.Yes:
+            if self.api_service.delete_subscription(sub_id):
+                QMessageBox.information(self.view, "הצלחה", "המנוי הוסר בהצלחה!")
+                self.load_data() # טוען מחדש את המסך כדי להעלים את המנוי מהרשימה
+            else:
+                QMessageBox.warning(self.view, "שגיאה", "שגיאה במחיקת המנוי.")

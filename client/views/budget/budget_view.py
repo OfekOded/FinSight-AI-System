@@ -247,18 +247,32 @@ class BudgetView(QWidget):
         layout.addWidget(progress)
         self.budget_list_layout.addWidget(item_widget)
 
-    def add_subscription_item(self, name, amount):
+    def add_subscription_item(self, sub_id, name, amount):
         row = QHBoxLayout()
         name_lbl = QLabel(name)
         name_lbl.setStyleSheet("font-size: 13px; border: none;")
         amt_lbl = QLabel(f"₪{amount}")
         amt_lbl.setStyleSheet("font-weight: bold; font-size: 13px; border: none;")
+        
+        # יצירת כפתור מחיקה
+        del_btn = QPushButton("✖")
+        del_btn.setFixedSize(16, 16)
+        del_btn.setCursor(Qt.PointingHandCursor)
+        del_btn.setStyleSheet("""
+            QPushButton { border: none; color: #e74c3c; font-weight: bold; }
+            QPushButton:hover { color: #c0392b; }
+        """)
+        
         row.addWidget(name_lbl)
         row.addStretch()
         row.addWidget(amt_lbl)
+        row.addWidget(del_btn)
+        
         w = QWidget()
         w.setLayout(row)
         self.subs_list_layout.addWidget(w)
+        
+        return del_btn  # נחזיר את כפתור המחיקה כדי שנוכל לחבר אותו לפונקציה שמוחקת מנוי
 
     # def add_savings_item(self, name, saved, target):
     #     frame = QFrame()

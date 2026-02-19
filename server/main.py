@@ -1,3 +1,4 @@
+import traceback
 from datetime import datetime
 import uuid
 import requests
@@ -199,8 +200,8 @@ def get_dashboard_data(db: Session = Depends(get_db), user: User = Depends(get_c
 
     return {
         "total_balance": balance,
-        "monthly_expenses": total_spent,
-        "recent_transactions": transactions[-5:]
+        "monthly_expenses": total_monthly_spent,
+        "recent_transactions": transactions
     }
     
 
@@ -253,7 +254,9 @@ async def consult_ai_agent(query: AIQueryRequest, db: Session = Depends(get_db),
             suggested_action=ai_result.get("suggested_action", "")
         )
     except Exception as e:
+        traceback.print_exc()
         raise HTTPException(status_code=500, detail=str(e))
+
 
 # --- Budget & Savings Endpoints ---
 
@@ -342,6 +345,19 @@ def add_subscription(item: SubscriptionCreate, db: Session = Depends(get_db), us
     db.commit()
     return {"status": "success", "id": new_sub.id}
 
+@app.delete("/api/budget/subscription/{sub_id}")
+def delete_subscription(sub_id: int, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    sub = db.query(Subscription).filter(Subscription.id == sub_id, Subscription.user_id == user.id).first()
+    if not sub:
+        raise HTTPException(status_code=404, detail="Subscription not found")
+    
+    db.delete(sub)
+    db.commit()
+    # הערה: המחיקה רק מסירה את המנוי להבא. היא לא משנה עסקאות עבר ולכן לא מזכה על החודש הנוכחי.
+    return {"status": "deleted"}
+
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run(app, host="127.0.0.1", port=8000)
+    
+    
