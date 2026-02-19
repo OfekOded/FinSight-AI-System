@@ -1,10 +1,17 @@
 import json
+import traceback
 from pydantic import BaseModel
 from typing import List
 from ollama import AsyncClient
 from dotenv import load_dotenv
 import os
 from huggingface_hub import AsyncInferenceClient
+
+from langchain_ollama import ChatOllama
+from langchain_core.messages import HumanMessage, SystemMessage, AIMessage
+
+from mcp import ClientSession, StdioServerParameters
+from mcp.client.stdio import stdio_client
 
 env_path = os.path.join(os.path.dirname(__file__), '.env')
 load_dotenv(env_path)
@@ -50,7 +57,29 @@ hf_client = AsyncInferenceClient(token=token)
 #     except Exception as e:
 #         return {"answer": str(e), "suggested_action": ""}
 
+async def get_mcp_context() -> str:
+    """
+    פונקציה שצורכת את הנתונים משרת ה-MCP.
+    """
+    server_path = os.path.join(os.path.dirname(__file__), "mcp_server.py")
+    
+    server_params = StdioServerParameters(
+        command="python",
+        args=[server_path],
+    )
+    try:
+        async with stdio_client(server_params) as (read, write):
+            async with ClientSession(read, write) as session:
+                await session.initialize()
+                result = await session.call_tool("get_financial_context", arguments={})
+                return result.content[0].text
+    except Exception as e:
+        print(f"MCP Communication Error: {e}")
+        return "Market data is currently unavailable."
+    
 async def get_financial_advice(question: str, history: List, user_context: dict) -> dict:
+    mcp_context = await get_mcp_context()
+    
     system_prompt = f"""You are a smart financial advisor for the FinSight app. Answer in Hebrew.
 User Profile:
 Name: {user_context['name']}
@@ -59,6 +88,8 @@ Budgets: {json.dumps(user_context['budgets'], ensure_ascii=False)}
 Subscriptions: {json.dumps(user_context['subscriptions'], ensure_ascii=False)}
 Savings Goals: {json.dumps(user_context['savings'], ensure_ascii=False)}
 Recent Transactions: {json.dumps(user_context['recent_transactions'], ensure_ascii=False)}
+
+Market Context (from MCP): {mcp_context}
 
 CRITICAL INSTRUCTIONS FOR YOUR RESPONSE:
 1. You MUST output ONLY a pure, valid JSON object.
@@ -70,35 +101,45 @@ CRITICAL INSTRUCTIONS FOR YOUR RESPONSE:
 7. Always ensure the JSON is properly formatted and can be parsed without errors.
 """
 
-    messages = [{"role": "system", "content": system_prompt}]
+    messages = [SystemMessage(content=system_prompt)]
     
-    for msg in history:
-        role = msg.role if hasattr(msg, 'role') else msg.get('role')
-        content = msg.content if hasattr(msg, 'content') else msg.get('content')
-        if role and content:
-            messages.append({"role": role, "content": content})
+    if history:
+        for msg in history:
+            try:
+                role = msg.role if hasattr(msg, 'role') else msg.get('role')
+                content = msg.content if hasattr(msg, 'content') else msg.get('content')
+                if role == 'user':
+                    messages.append(HumanMessage(content=content))
+                elif role == 'assistant':
+                    messages.append(AIMessage(content=content))
+            except Exception as parse_error:
+                print(f"Error parsing history message: {parse_error}. Skipping this message.")
+                continue
         
-    messages.append({"role": "user", "content": question})
+    messages.append(HumanMessage(content=question))
 
+    llm = ChatOllama(
+        model="llama3", 
+        temperature=0.25,
+        format="json"
+    )
+    
+    print("Sending request to local Ollama server")
+    
     try:
         # פנייה לשרתים של Hugging Face (שימוש במודל חכם ומהיר של Llama 3)
-        response = await hf_client.chat_completion(
-            model="meta-llama/Meta-Llama-3-8B-Instruct",
-            messages=messages,
-            temperature=0.25,
-            max_tokens=800
-        )
+        response = await llm.ainvoke(messages)
         
-        raw_text = response.choices[0].message.content.strip()
+        raw_text = response.content.strip()
         
         # מנגנון הגנה למקרה שהמודל מחזיר את ה-JSON עטוף ב-Markdown
-        # 
-        # if raw_text.startswith("```json"):
-        #     raw_text = raw_text[7:]
-        # if raw_text.startswith("```"):
-        #     raw_text = raw_text[3:]
-        # if raw_text.endswith("```"):
-        #     raw_text = raw_text[:-3]
+        
+        if raw_text.startswith("```json"):
+            raw_text = raw_text[7:]
+        if raw_text.startswith("```"):
+            raw_text = raw_text[3:]
+        if raw_text.endswith("```"):
+            raw_text = raw_text[:-3]
         
         start_idx = raw_text.find('{')
         end_idx = raw_text.rfind('}')
@@ -120,6 +161,8 @@ CRITICAL INSTRUCTIONS FOR YOUR RESPONSE:
             
     except Exception as e:
         print(f"AI Connection Error: {e}") 
+        traceback.print_exc() 
+
         return {
             "answer": "אופס! נראה שיש כרגע עומס קטן על היועץ הפיננסי. נסה לשאול אותי שוב בעוד כמה רגעים 😅", 
             "suggested_action": ""
