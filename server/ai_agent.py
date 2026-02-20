@@ -42,6 +42,7 @@ async def get_mcp_context() -> str:
                 return result.content[0].text
     except Exception:
         return "Market data is currently unavailable."
+    
 
 async def get_financial_advice(question: str, history: List, user_context: dict) -> dict:
     mcp_context = await get_mcp_context()
@@ -82,7 +83,15 @@ The values MUST be strings.
             continue
             
     messages.append(HumanMessage(content=question))
-    llm = ChatOllama(model="llama3.1", temperature=0.1, format="json")
+    
+    ollama_url = os.getenv("OLLAMA_BASE_URL", "http://localhost:11434")
+    
+    llm = ChatOllama(
+        model="llama3.1", 
+        temperature=0.1, 
+        format="json",
+        base_url=ollama_url
+    )
     
     try:
         response = await llm.ainvoke(messages)
@@ -124,18 +133,37 @@ The values MUST be strings.
         except Exception:
             return {"response": "אופס! נראה שיש כרגע עומס קטן. נסה לשאול שוב בעוד כמה רגעים", "suggested_action": ""}
 
+
+
 async def analyze_receipt_image(image_bytes: bytes) -> dict:
     try:
-        response = await AsyncClient().chat(
+        ollama_url = os.getenv("OLLAMA_BASE_URL", "http://localhost:11434")
+        client = AsyncClient(host=ollama_url)
+        response = await client.chat(
             model='llava',
             messages=[{'role': 'user', 'content': "Analyze this receipt image and extract the following details into a pure JSON object. Keys required: merchant, amount, date, category. Output ONLY the JSON object.", 'images': [image_bytes]}]
         )
-        raw_text = response['message']['content'].strip()
-        if raw_text.startswith("```json"):
-            raw_text = raw_text[7:]
-        if raw_text.endswith("```"):
-            raw_text = raw_text[:-3]
+        
+        raw_text = response.get('message', {}).get('content', '').strip()
+        print("RAW LLLAVA RESPONSE:", raw_text)
+        
+        if not raw_text:
+            return {"merchant": "תשובה ריקה מהמודל", "amount": 0, "category": "אחר"}
+
+        start_idx = raw_text.find('{')
+        end_idx = raw_text.rfind('}') + 1
+        
+        if start_idx != -1 and end_idx != 0:
+            raw_text = raw_text[start_idx:end_idx]
+            
         data = json.loads(raw_text.strip())
-        return {"merchant": data.get("merchant", "לא זוהה"), "amount": data.get("amount", 0), "date": data.get("date"), "category": data.get("category", "כללי")}
-    except Exception:
+        return {
+            "merchant": data.get("merchant", "לא זוהה"), 
+            "amount": data.get("amount", 0), 
+            "date": data.get("date"), 
+            "category": data.get("category", "כללי")
+        }
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
         return {"merchant": "שגיאת פענוח", "amount": 0, "category": "אחר"}
