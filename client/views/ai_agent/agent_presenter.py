@@ -15,7 +15,7 @@ class AIWorker(QThread):
         if response:
             self.finished.emit(response)
         else:
-            self.finished.emit({"answer": "שגיאה בתקשורת עם השרת.", "suggested_action": ""})
+            self.finished.emit({"response": "שגיאה בתקשורת עם השרת.", "suggested_action": ""})
 
 class AgentPresenter:
     def __init__(self, view, api_service):
@@ -61,7 +61,7 @@ class AgentPresenter:
     def handle_ai_response(self, response):
         self.view.set_loading(False)
         
-        answer = response.get("answer", "מצטער, לא הצלחתי להבין.")
+        answer = response.get("response", "מצטער, לא הצלחתי להבין.")
         action = response.get("suggested_action", "")
         
         full_response = answer

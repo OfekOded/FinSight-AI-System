@@ -1,40 +1,23 @@
 from pydantic import BaseModel, ConfigDict
 from typing import List, Optional
 
-# --- Transaction Models ---
-
 class TransactionCreate(BaseModel):
-    """
-    Schema for creating a new transaction.
-    Received from the Client.
-    """
     title: str
     amount: float
-    currency: str = "ILS"  # Default currency is Shekels
+    currency: str = "ILS"
     category: str
-    date: str  # Expected format: YYYY-MM-DD
+    date: str
     image_url: Optional[str] = None
 
 class TransactionResponse(TransactionCreate):
-    """
-    Schema for returning a transaction to the Client.
-    Includes the system-generated ID and status.
-    """
     id: str
-    amount_in_ils: float # Calculated field based on exchange rate
+    amount_in_ils: float
     status: str
 
-# --- Dashboard Models ---
-
 class DashboardData(BaseModel):
-    """
-    Aggregated data for the main dashboard view.
-    """
     total_balance: float
     monthly_expenses: float
     recent_transactions: List[TransactionResponse]
-
-# --- AI Models ---
 
 class Message(BaseModel):
     role: str
@@ -45,46 +28,28 @@ class AIQueryRequest(BaseModel):
     history: List[Message] = []
 
 class AIQueryResponse(BaseModel):
-    answer: str
+    response: str
     suggested_action: Optional[str] = None
-    
-    
-    
-    
-# --- Auth Models ---
 
 class UserRegister(BaseModel):
-    """
-    Schema for user registration
-    """
     username: str
     password: str
     full_name: str
 
 class UserLogin(BaseModel):
-    """
-    Schema for user login
-    """
     username: str
     password: str
 
 class AuthResponse(BaseModel):
-    """
-    Response returned after successful login/register
-    """
     token: str
     username: str
     status: str = "success"
 
-
 class UserProfileUpdate(BaseModel):
     full_name: Optional[str] = None
     salary: Optional[float] = None
-    current_password: Optional[str] = None # נדרש לאימות לפני שינוי פרטים רגישים
+    current_password: Optional[str] = None
     new_password: Optional[str] = None
-
-
-# --- Budget Models ---
 
 class BudgetSchema(BaseModel):
     id: int
@@ -107,7 +72,6 @@ class SavingsGoalSchema(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
 class SavingsGoalCreate(BaseModel):
-    # id: int
     name: str
     target: float
     current: float = 0

@@ -14,7 +14,7 @@ ROUTE_MAP = {
 }
 
 async def forward_request(request: Request, target_url: str):
-    async with httpx.AsyncClient(timeout=120.0) as client:
+    async with httpx.AsyncClient(timeout=500.0) as client:
         headers = dict(request.headers)
         headers.pop("host", None)
         headers.pop("content-length", None)
