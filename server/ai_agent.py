@@ -25,6 +25,7 @@ async def analyze_sentiment(text: str) -> str:
     try:
         result = await hf_client.text_classification(text)
         if result:
+            print(result[0]['label'])
             return result[0]['label']
         return "neutral"
     except Exception:
@@ -47,7 +48,7 @@ async def get_financial_advice(question: str, history: List, user_context: dict)
     sentiment = await analyze_sentiment(question)
     parser = PydanticOutputParser(pydantic_object=AIResultFormat)
     
-    system_prompt = f"""You are a smart financial advisor for the FinSight app. Answer in Hebrew.
+    system_prompt = f"""You are a smart financial advisor for the FinSight app.
 User Profile:
 Name: {user_context['name']}
 Salary: {user_context['salary']}
