@@ -1,9 +1,10 @@
 import json
+import sys
+import os
 from pydantic import BaseModel, Field
 from typing import List
 from ollama import AsyncClient
 from dotenv import load_dotenv
-import os
 from huggingface_hub import AsyncInferenceClient
 from langchain_ollama import ChatOllama
 from langchain_core.messages import HumanMessage, SystemMessage, AIMessage
@@ -25,7 +26,6 @@ async def analyze_sentiment(text: str) -> str:
     try:
         result = await hf_client.text_classification(text)
         if result:
-            print(result[0]['label'])
             return result[0]['label']
         return "neutral"
     except Exception:
@@ -33,7 +33,7 @@ async def analyze_sentiment(text: str) -> str:
 
 async def get_mcp_context() -> str:
     server_path = os.path.join(os.path.dirname(__file__), "mcp_server.py")
-    server_params = StdioServerParameters(command="python", args=[server_path])
+    server_params = StdioServerParameters(command=sys.executable, args=[server_path])
     try:
         async with stdio_client(server_params) as (read, write):
             async with ClientSession(read, write) as session:
@@ -45,6 +45,7 @@ async def get_mcp_context() -> str:
 
 async def get_financial_advice(question: str, history: List, user_context: dict) -> dict:
     mcp_context = await get_mcp_context()
+    print(mcp_context)
     sentiment = await analyze_sentiment(question)
     parser = PydanticOutputParser(pydantic_object=AIResultFormat)
     
